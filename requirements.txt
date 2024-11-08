@@ -3,7 +3,8 @@ flask-socketio
 redis
 openai
 faiss-cpu
-numpy
 python-dotenv
 SpeechRecognition
 gTTS
+gunicorn
+eventlet
