@@ -1,11 +1,10 @@
 flask
 flask-socketio
-openai[datalib]
+openai
 faiss-cpu
 python-dotenv
 SpeechRecognition
 gTTS
 gunicorn
 eventlet
-pandas
 numpy
