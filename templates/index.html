@@ -19,6 +19,8 @@
     <script>
         let voiceOutputEnabled = false;
         const socket = io();
+        let mediaRecorder;
+        let audioChunks = [];
 
         function appendToChatBox(content, isUser = false) {
             const chatBox = document.getElementById('chat-box');
@@ -73,28 +75,63 @@
         }
 
         function checkMicrophoneAvailability() {
-            fetch('/check-mic')
-                .then(response => response.json())
-                .then(data => {
-                    if (!data.microphoneAvailable) {
-                        alert("Microphone is not available. Voice input will not work.");
-                        document.getElementById('voice-input-btn').disabled = true;
-                    }
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    console.log("Microphone is available");
+                    stream.getTracks().forEach(track => track.stop());
                 })
-                .catch(error => console.error('Error:', error));
+                .catch(error => {
+                    console.error("Microphone is not available:", error);
+                    alert("Microphone is not available. Voice input will not work.");
+                    document.getElementById('voice-input-btn').disabled = true;
+                });
         }
 
         document.getElementById('voice-input-btn').addEventListener('click', () => {
             const btn = document.getElementById('voice-input-btn');
             if (btn.textContent === 'Voice Input') {
+                startRecording();
                 btn.textContent = 'Listening...';
                 btn.style.backgroundColor = '#ff4444';
-                socket.emit('start_recording');
             } else {
+                stopRecording();
                 btn.textContent = 'Voice Input';
                 btn.style.backgroundColor = '#4CAF50';
             }
         });
+
+        function startRecording() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start();
+
+                    mediaRecorder.addEventListener("dataavailable", event => {
+                        audioChunks.push(event.data);
+                    });
+
+                    mediaRecorder.addEventListener("stop", () => {
+                        const audioBlob = new Blob(audioChunks);
+                        sendAudioToServer(audioBlob);
+                        audioChunks = [];
+                    });
+                });
+        }
+
+        function stopRecording() {
+            if (mediaRecorder) {
+                mediaRecorder.stop();
+            }
+        }
+
+        function sendAudioToServer(audioBlob) {
+            const reader = new FileReader();
+            reader.onload = function() {
+                const base64Audio = reader.result.split(',')[1];
+                socket.emit('audio_data', { audio: base64Audio });
+            };
+            reader.readAsDataURL(audioBlob);
+        }
 
         document.getElementById('voice-output-btn').addEventListener('click', () => {
             voiceOutputEnabled = !voiceOutputEnabled;
