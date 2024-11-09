@@ -72,8 +72,28 @@
             .catch(error => console.error('Error:', error));
         }
 
+        function checkMicrophoneAvailability() {
+            fetch('/check-mic')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.microphoneAvailable) {
+                        alert("Microphone is not available. Voice input will not work.");
+                        document.getElementById('voice-input-btn').disabled = true;
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
         document.getElementById('voice-input-btn').addEventListener('click', () => {
-            socket.emit('start_recording');
+            const btn = document.getElementById('voice-input-btn');
+            if (btn.textContent === 'Voice Input') {
+                btn.textContent = 'Listening...';
+                btn.style.backgroundColor = '#ff4444';
+                socket.emit('start_recording');
+            } else {
+                btn.textContent = 'Voice Input';
+                btn.style.backgroundColor = '#4CAF50';
+            }
         });
 
         document.getElementById('voice-output-btn').addEventListener('click', () => {
@@ -82,7 +102,18 @@
         });
 
         socket.on('transcription', (data) => {
-            sendQuery(data.text);
+            document.getElementById('voice-input-btn').textContent = 'Voice Input';
+            document.getElementById('voice-input-btn').style.backgroundColor = '#4CAF50';
+            if (data.text !== "Sorry, I couldn't understand that. Please try again." && 
+                data.text !== "Sorry, there was an error processing your speech. Please try again.") {
+                sendQuery(data.text);
+            } else {
+                appendToChatBox(data.text, false);
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', (event) => {
+            checkMicrophoneAvailability();
         });
     </script>
 </body>
