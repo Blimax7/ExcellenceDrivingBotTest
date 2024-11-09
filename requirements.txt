@@ -8,3 +8,4 @@ gTTS
 gunicorn
 eventlet
 pandas
+numpy
