@@ -1,5 +1,6 @@
 import eventlet
 eventlet.monkey_patch()
+
 from flask import Flask, render_template, request, jsonify, session, send_file
 from flask_socketio import SocketIO, emit
 from openai import OpenAI
@@ -41,7 +42,7 @@ class InMemoryStorage:
         self.storage[key].append(value)
 
     def lindex(self, key, index):
-        if key in self.storage and 0 <= index < len(self.storage[key]):
+        if key in self.storage and -len(self.storage[key]) <= index < len(self.storage[key]):
             return self.storage[key][index]
         return None
 
@@ -107,21 +108,25 @@ def ask():
         # Get embedding for user query using the cache or generate new one
         query_embedding = get_embedding(user_query)
 
-        # Retrieve relevant content using FAISS
-        _, indices = faiss_index.search(np.array([query_embedding], dtype=np.float32), k=3)
+        try:
+            # Retrieve relevant content using FAISS
+            _, indices = faiss_index.search(np.array([query_embedding], dtype=np.float32), k=3)
 
-        # Gather the most relevant sections based on FAISS index results
-        relevant_sections = [sections[i] for i in indices[0] if i != -1]
+            # Gather the most relevant sections based on FAISS index results
+            relevant_sections = [sections[i] for i in indices[0] if i != -1]
 
-        if relevant_sections:
-            relevant_content = ' '.join(relevant_sections)
-            
-            # Use your custom prompt for generating a response
-            gpt4_response = generate_gpt4_response(relevant_content, user_query)
-            
-            return jsonify({'response': gpt4_response})
-        else:
-            return jsonify({'response': "No relevant content found."})
+            if relevant_sections:
+                relevant_content = ' '.join(relevant_sections)
+                
+                # Use your custom prompt for generating a response
+                gpt4_response = generate_gpt4_response(relevant_content, user_query)
+                
+                return jsonify({'response': gpt4_response})
+            else:
+                return jsonify({'response': "No relevant content found."})
+        except Exception as faiss_error:
+            app.logger.error(f"FAISS search error: {str(faiss_error)}")
+            return jsonify({'response': "Sorry, we couldn't process your query. Please try again."})
     
     except Exception as e:
         app.logger.error(f"Error processing query: {str(e)}")
