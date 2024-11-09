@@ -1,25 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agentic RAG Chatbot with Voice</title>
-<link rel="stylesheet" href="/static/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic RAG Chatbot with Voice</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<div class="chat-container">
-<div class="chat-box" id="chat-box"></div>
-<input type="text" id="user-input" placeholder="Ask a question..." autofocus>
-<button onclick="sendQuery()">Send</button>
-<button id="voice-input-btn">Voice Input</button>
-<button id="voice-output-btn">Toggle Voice Output</button>
-</div>
- 
+    <div class="chat-container">
+        <div class="chat-box" id="chat-box"></div>
+        <input type="text" id="user-input" placeholder="Ask a question..." autofocus>
+        <button onclick="sendQuery()">Send</button>
+        <button id="voice-input-btn">Voice Input</button>
+        <button id="voice-output-btn">Toggle Voice Output</button>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-<script>
+    <script>
         let voiceOutputEnabled = false;
         const socket = io();
- 
+
         function appendToChatBox(content, isUser = false) {
             const chatBox = document.getElementById('chat-box');
             const message = document.createElement('div');
@@ -28,16 +28,16 @@
             chatBox.appendChild(message);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
- 
+
         function sendQuery(query = null) {
             if (!query) {
                 query = document.getElementById('user-input').value;
             }
             if (!query) return;
- 
+
             appendToChatBox(query, true);
             document.getElementById('user-input').value = '';
- 
+
             fetch('/ask', {
                 method: 'POST',
                 headers: {
@@ -54,7 +54,7 @@
             })
             .catch(error => console.error('Error:', error));
         }
- 
+
         function playAudio(text) {
             fetch('/text-to-speech', {
                 method: 'POST',
@@ -71,19 +71,34 @@
             })
             .catch(error => console.error('Error:', error));
         }
- 
+
         document.getElementById('voice-input-btn').addEventListener('click', () => {
+            appendToChatBox('Listening...', true);
             socket.emit('start_recording');
         });
- 
+
         document.getElementById('voice-output-btn').addEventListener('click', () => {
             voiceOutputEnabled = !voiceOutputEnabled;
             document.getElementById('voice-output-btn').textContent = voiceOutputEnabled ? 'Disable Voice Output' : 'Enable Voice Output';
         });
- 
+
         socket.on('transcription', (data) => {
+            appendToChatBox(`Recognized: ${data.text}`, true);
             sendQuery(data.text);
         });
-</script>
+
+        socket.on('transcription_error', (data) => {
+            appendToChatBox(`Error: ${data.error}`, true);
+        });
+
+        // Ensure the socket connection is established
+        socket.on('connect', () => {
+            console.log('Socket.IO connection established');
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Socket.IO connection error:', error);
+        });
+    </script>
 </body>
 </html>
