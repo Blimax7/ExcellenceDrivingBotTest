@@ -115,12 +115,21 @@
                         sendAudioToServer(audioBlob);
                         audioChunks = [];
                     });
+
+                    // Automatically stop recording after 5 seconds
+                    setTimeout(() => {
+                        if (mediaRecorder.state === "recording") {
+                            stopRecording();
+                        }
+                    }, 5000);
                 });
         }
 
         function stopRecording() {
-            if (mediaRecorder) {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
                 mediaRecorder.stop();
+                document.getElementById('voice-input-btn').textContent = 'Voice Input';
+                document.getElementById('voice-input-btn').style.backgroundColor = '#4CAF50';
             }
         }
 
@@ -139,6 +148,7 @@
         });
 
         socket.on('transcription', (data) => {
+            console.log("Received transcription:", data.text);  // Debug log
             document.getElementById('voice-input-btn').textContent = 'Voice Input';
             document.getElementById('voice-input-btn').style.backgroundColor = '#4CAF50';
             if (data.text !== "Sorry, I couldn't understand that. Please try again." && 
