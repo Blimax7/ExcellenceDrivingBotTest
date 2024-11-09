@@ -33,6 +33,9 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # Path to store cached embeddings
 EMBEDDINGS_CACHE_FILE = 'embeddings_cache.pkl'
 
+# Initialize embedding cache
+embedding_cache = {}
+
 # In-memory storage to replace Redis
 class InMemoryStorage:
     def __init__(self):
