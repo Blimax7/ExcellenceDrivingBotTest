@@ -24,7 +24,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")  # Set your secret key here
 app.config['SESSION_TYPE'] = 'filesystem'
-socketio = SocketIO(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Path to store cached embeddings
 EMBEDDINGS_CACHE_FILE = 'embeddings_cache.pkl'
@@ -174,6 +174,7 @@ How may I assist you with Excellence Driving's services?
 
 @socketio.on('audio_data')
 def handle_audio_data(data):
+    print("Received audio data")  # Debug print
     audio_data = base64.b64decode(data['audio'])
     
     # Save the audio data to a temporary file
@@ -187,7 +188,7 @@ def handle_audio_data(data):
     
     try:
         text = r.recognize_google(audio)
-        print("Transcribed text:", text)
+        print("Transcribed text:", text)  # Debug print
         emit('transcription', {'text': text})
     except sr.UnknownValueError:
         print("Google Speech Recognition could not understand audio")
