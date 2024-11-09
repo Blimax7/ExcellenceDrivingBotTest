@@ -1,6 +1,5 @@
 flask
 flask-socketio
-redis
 openai[datalib]
 faiss-cpu
 python-dotenv
