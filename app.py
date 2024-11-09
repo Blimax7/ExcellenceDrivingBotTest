@@ -176,7 +176,8 @@ def handle_recording():
     r = sr.Recognizer()
     with sr.Microphone() as source:
         print("Listening...")
-        audio = r.listen(source)
+        r.adjust_for_ambient_noise(source)
+        audio = r.listen(source, timeout=5, phrase_time_limit=5)
     
     try:
         text = r.recognize_google(audio)
@@ -184,8 +185,10 @@ def handle_recording():
         emit('transcription', {'text': text})
     except sr.UnknownValueError:
         print("Google Speech Recognition could not understand audio")
+        emit('transcription', {'text': "Sorry, I couldn't understand that. Please try again."})
     except sr.RequestError as e:
-        print("Could not request results from Google Speech Recognition service; {0}".format(e))
+        print(f"Could not request results from Google Speech Recognition service; {e}")
+        emit('transcription', {'text': "Sorry, there was an error processing your speech. Please try again."})
 
 @app.route('/text-to-speech', methods=['POST'])
 def text_to_speech():
@@ -200,6 +203,14 @@ def text_to_speech():
     audio_io.seek(0)
     
     return send_file(audio_io, mimetype='audio/mp3')
+
+@app.route('/check-mic')
+def check_mic():
+    try:
+        sr.Microphone()
+        return jsonify({"microphoneAvailable": True})
+    except:
+        return jsonify({"microphoneAvailable": False})
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
