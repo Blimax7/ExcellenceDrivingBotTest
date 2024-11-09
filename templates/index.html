@@ -1,61 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agentic RAG Chatbot with Voice</title>
-    <style>
-        /* Styling for a clean chat UI */
-        .chat-container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            font-family: Arial, sans-serif;
-        }
-        .chat-box {
-            border: 1px solid #ccc;
-            padding: 10px;
-            height: 400px;
-            overflow-y: auto;
-            margin-bottom: 10px;
-        }
-        .user-message {
-            text-align: right;
-            color: blue;
-            margin: 5px 0;
-        }
-        .bot-message {
-            text-align: left;
-            color: green;
-            margin: 5px 0;
-        }
-        .button-container {
-            display: flex;
-            gap: 10px;
-        }
-        button {
-            padding: 10px;
-            cursor: pointer;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic RAG Chatbot with Voice</title>
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="chat-container">
-        <div class="chat-box" id="chat-box"></div>
-        <input type="text" id="user-input" placeholder="Ask a question..." autofocus>
-        <div class="button-container">
-            <button onclick="sendQuery()">Send</button>
-            <button id="voice-input-btn">Voice Input</button>
-            <button id="voice-output-btn">Toggle Voice Output</button>
-        </div>
-    </div>
-
+<div class="chat-container">
+<div class="chat-box" id="chat-box"></div>
+<input type="text" id="user-input" placeholder="Ask a question..." autofocus>
+<button onclick="sendQuery()">Send</button>
+<button id="voice-input-btn">Voice Input</button>
+<button id="voice-output-btn">Toggle Voice Output</button>
+</div>
+ 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <script>
+<script>
         let voiceOutputEnabled = false;
-        const socket = io('https://excellencedrivingbottest.onrender.com');  // Render URL for socket connection
-        let mediaRecorder, audioChunks = [];
-
+        const socket = io();
+ 
         function appendToChatBox(content, isUser = false) {
             const chatBox = document.getElementById('chat-box');
             const message = document.createElement('div');
@@ -64,77 +28,62 @@
             chatBox.appendChild(message);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
-
+ 
         function sendQuery(query = null) {
-            query = query || document.getElementById('user-input').value;
+            if (!query) {
+                query = document.getElementById('user-input').value;
+            }
             if (!query) return;
-
+ 
             appendToChatBox(query, true);
             document.getElementById('user-input').value = '';
-
-            fetch('https://excellencedrivingbottest.onrender.com/ask', {  // Render URL for /ask endpoint
+ 
+            fetch('/ask', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query })
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query: query })
             })
             .then(response => response.json())
             .then(data => {
                 appendToChatBox(data.response);
-                if (voiceOutputEnabled) playAudio(data.response);
-            });
+                if (voiceOutputEnabled) {
+                    playAudio(data.response);
+                }
+            })
+            .catch(error => console.error('Error:', error));
         }
-
+ 
         function playAudio(text) {
-            fetch('https://excellencedrivingbottest.onrender.com/text-to-speech', {  // Render URL for TTS endpoint
+            fetch('/text-to-speech', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text })
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text: text })
             })
             .then(response => response.blob())
             .then(blob => {
-                const audio = new Audio(URL.createObjectURL(blob));
+                const audioUrl = URL.createObjectURL(blob);
+                const audio = new Audio(audioUrl);
                 audio.play();
-            });
+            })
+            .catch(error => console.error('Error:', error));
         }
-
-        function startRecording() {
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(stream => {
-                    mediaRecorder = new MediaRecorder(stream);
-                    mediaRecorder.start();
-                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                    mediaRecorder.onstop = () => {
-                        const audioBlob = new Blob(audioChunks);
-                        sendAudioToServer(audioBlob);
-                        audioChunks = [];
-                    };
-                    setTimeout(() => mediaRecorder.stop(), 5000);
-                });
-        }
-
-        function sendAudioToServer(audioBlob) {
-            const reader = new FileReader();
-            reader.onload = () => {
-                socket.emit('audio_data', { audio: reader.result.split(',')[1] });
-            };
-            reader.readAsDataURL(audioBlob);
-        }
-
-        socket.on('transcription', data => {
-            appendToChatBox(data.text, false);
-            if (data.text !== "Sorry, I couldn't understand that.") sendQuery(data.text);
+ 
+        document.getElementById('voice-input-btn').addEventListener('click', () => {
+            socket.emit('start_recording');
         });
-
-        document.getElementById('voice-input-btn').onclick = () => {
-            startRecording();
-            document.getElementById('voice-input-btn').textContent = 'Listening...';
-            setTimeout(() => document.getElementById('voice-input-btn').textContent = 'Voice Input', 5000);
-        };
-
-        document.getElementById('voice-output-btn').onclick = () => {
+ 
+        document.getElementById('voice-output-btn').addEventListener('click', () => {
             voiceOutputEnabled = !voiceOutputEnabled;
             document.getElementById('voice-output-btn').textContent = voiceOutputEnabled ? 'Disable Voice Output' : 'Enable Voice Output';
-        };
-    </script>
+        });
+ 
+        socket.on('transcription', (data) => {
+            sendQuery(data.text);
+        });
+</script>
 </body>
 </html>
