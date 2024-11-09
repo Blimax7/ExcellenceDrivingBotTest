@@ -10,9 +10,11 @@
     <div class="chat-container">
         <div class="chat-box" id="chat-box"></div>
         <input type="text" id="user-input" placeholder="Ask a question..." autofocus>
-        <button onclick="sendQuery()">Send</button>
-        <button id="voice-input-btn">Voice Input</button>
-        <button id="voice-output-btn">Toggle Voice Output</button>
+        <div class="button-container">
+            <button onclick="sendQuery()">Send</button>
+            <button id="voice-input-btn">Voice Input</button>
+            <button id="voice-output-btn">Toggle Voice Output</button>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
@@ -92,11 +94,11 @@
             if (btn.textContent === 'Voice Input') {
                 startRecording();
                 btn.textContent = 'Listening...';
-                btn.style.backgroundColor = '#ff4444';
+                btn.classList.add('listening');
             } else {
                 stopRecording();
                 btn.textContent = 'Voice Input';
-                btn.style.backgroundColor = '#4CAF50';
+                btn.classList.remove('listening');
             }
         });
 
@@ -129,7 +131,7 @@
             if (mediaRecorder && mediaRecorder.state === "recording") {
                 mediaRecorder.stop();
                 document.getElementById('voice-input-btn').textContent = 'Voice Input';
-                document.getElementById('voice-input-btn').style.backgroundColor = '#4CAF50';
+                document.getElementById('voice-input-btn').classList.remove('listening');
             }
         }
 
@@ -150,7 +152,7 @@
         socket.on('transcription', (data) => {
             console.log("Received transcription:", data.text);  // Debug log
             document.getElementById('voice-input-btn').textContent = 'Voice Input';
-            document.getElementById('voice-input-btn').style.backgroundColor = '#4CAF50';
+            document.getElementById('voice-input-btn').classList.remove('listening');
             if (data.text !== "Sorry, I couldn't understand that. Please try again." && 
                 data.text !== "Sorry, there was an error processing your speech. Please try again.") {
                 sendQuery(data.text);
