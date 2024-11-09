@@ -10,9 +10,10 @@ import numpy as np
 from dotenv import load_dotenv
 import pickle
 import uuid
-import speech_recognition as sr
 from gtts import gTTS
 import io
+import base64
+import speech_recognition as sr
 
 # Load environment variables from .env file
 load_dotenv()
@@ -171,17 +172,22 @@ How may I assist you with Excellence Driving's services?
 
     return response.choices[0].message.content
 
-@socketio.on('start_recording')
-def handle_recording():
+@socketio.on('audio_data')
+def handle_audio_data(data):
+    audio_data = base64.b64decode(data['audio'])
+    
+    # Save the audio data to a temporary file
+    with open("temp_audio.wav", "wb") as f:
+        f.write(audio_data)
+    
+    # Use speech recognition to convert audio to text
     r = sr.Recognizer()
-    with sr.Microphone() as source:
-        print("Listening...")
-        r.adjust_for_ambient_noise(source)
-        audio = r.listen(source, timeout=5, phrase_time_limit=5)
+    with sr.AudioFile("temp_audio.wav") as source:
+        audio = r.record(source)
     
     try:
         text = r.recognize_google(audio)
-        print("You said:", text)
+        print("Transcribed text:", text)
         emit('transcription', {'text': text})
     except sr.UnknownValueError:
         print("Google Speech Recognition could not understand audio")
@@ -189,6 +195,9 @@ def handle_recording():
     except sr.RequestError as e:
         print(f"Could not request results from Google Speech Recognition service; {e}")
         emit('transcription', {'text': "Sorry, there was an error processing your speech. Please try again."})
+    
+    # Remove the temporary audio file
+    os.remove("temp_audio.wav")
 
 @app.route('/text-to-speech', methods=['POST'])
 def text_to_speech():
@@ -203,14 +212,6 @@ def text_to_speech():
     audio_io.seek(0)
     
     return send_file(audio_io, mimetype='audio/mp3')
-
-@app.route('/check-mic')
-def check_mic():
-    try:
-        sr.Microphone()
-        return jsonify({"microphoneAvailable": True})
-    except:
-        return jsonify({"microphoneAvailable": False})
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
