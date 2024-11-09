@@ -2,7 +2,6 @@ import eventlet
 eventlet.monkey_patch()
 from flask import Flask, render_template, request, jsonify, session, send_file
 from flask_socketio import SocketIO, emit
-import redis
 from openai import OpenAI
 import os
 import faiss
@@ -25,14 +24,29 @@ app.secret_key = os.getenv("SECRET_KEY")  # Set your secret key here
 app.config['SESSION_TYPE'] = 'filesystem'
 socketio = SocketIO(app)
 
-# Initialize Redis
-redis_client = redis.StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
-
 # Path to store cached embeddings
 EMBEDDINGS_CACHE_FILE = 'embeddings_cache.pkl'
 
 # Store user queries and their embeddings in a dictionary for caching
 embedding_cache = {}
+
+# In-memory storage to replace Redis
+class InMemoryStorage:
+    def __init__(self):
+        self.storage = {}
+
+    def rpush(self, key, value):
+        if key not in self.storage:
+            self.storage[key] = []
+        self.storage[key].append(value)
+
+    def lindex(self, key, index):
+        if key in self.storage and 0 <= index < len(self.storage[key]):
+            return self.storage[key][index]
+        return None
+
+# Initialize the in-memory storage
+in_memory_storage = InMemoryStorage()
 
 def load_embeddings_from_cache():
     if os.path.exists(EMBEDDINGS_CACHE_FILE):
@@ -63,34 +77,34 @@ def index():
 
 @app.route('/ask', methods=['POST'])
 def ask():
-    data = request.get_json()
-    user_query = data.get('query')
-
-    # Generate a unique user ID for the session
-    user_id = session.get('user_id')
-    if not user_id:
-        user_id = str(uuid.uuid4())
-        session['user_id'] = user_id
-    
-    # Store the user query in Redis
-    redis_client.rpush(f'session:{user_id}:queries', user_query)
-
-    # Check if the user is asking about their previous question
-    if user_query.lower() == "what was my previous question?":
-        previous_question = redis_client.lindex(f'session:{user_id}:queries', -2)  # Get the second last question
-        if previous_question:
-            return jsonify({'response': f"Your previous question was: {previous_question}"})
-        else:
-            return jsonify({'response': "I don't have any previous questions."})
-
-    # Load cached embeddings if available
-    faiss_index, sections = load_embeddings_from_cache()
-
-    if faiss_index is None or sections is None:
-        return jsonify({'response': "Embeddings not found. Please generate them first."})
-
-    # Get embedding for user query using the cache or generate new one
     try:
+        data = request.get_json()
+        user_query = data.get('query')
+
+        # Generate a unique user ID for the session
+        user_id = session.get('user_id')
+        if not user_id:
+            user_id = str(uuid.uuid4())
+            session['user_id'] = user_id
+        
+        # Store the user query in in-memory storage
+        in_memory_storage.rpush(f'session:{user_id}:queries', user_query)
+
+        # Check if the user is asking about their previous question
+        if user_query.lower() == "what was my previous question?":
+            previous_question = in_memory_storage.lindex(f'session:{user_id}:queries', -2)  # Get the second last question
+            if previous_question:
+                return jsonify({'response': f"Your previous question was: {previous_question}"})
+            else:
+                return jsonify({'response': "I don't have any previous questions."})
+
+        # Load cached embeddings if available
+        faiss_index, sections = load_embeddings_from_cache()
+
+        if faiss_index is None or sections is None:
+            return jsonify({'response': "Embeddings not found. Please generate them first."})
+
+        # Get embedding for user query using the cache or generate new one
         query_embedding = get_embedding(user_query)
 
         # Retrieve relevant content using FAISS
@@ -110,7 +124,8 @@ def ask():
             return jsonify({'response': "No relevant content found."})
     
     except Exception as e:
-        return jsonify({'response': f"Error processing query: {str(e)}"})
+        app.logger.error(f"Error processing query: {str(e)}")
+        return jsonify({'response': "Sorry, we're experiencing technical difficulties. Please try again later."})
 
 def generate_gpt4_response(context, query):
     prompt = f"""
